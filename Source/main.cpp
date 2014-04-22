@@ -4,6 +4,7 @@
 #include <MologieDetours/detours.h>
 #include <stdexcept>
 #include <stdint.h>
+#include <stdio.h>
 #include <sha1.h>
 
 #if defined _WIN32
