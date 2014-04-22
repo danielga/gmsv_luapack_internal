@@ -218,7 +218,7 @@ GMOD_MODULE_OPEN( )
 
 		lua->GetField( -1, "luapack" );
 		if( !lua->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
-			throw std::exception( "luapack table not found" );
+			throw std::runtime_error( "luapack table not found" );
 
 		lua->PushCFunction( luapack_rename );
 		lua->SetField( -2, "Rename" );
@@ -244,7 +244,7 @@ GMOD_MODULE_OPEN( )
 
 		AddOrUpdateFile = reinterpret_cast<AddOrUpdateFile_t>( symfinder.ResolveOnBinary( SERVER_BINARY, ADDORUPDATEFILE_SYM, ADDORUPDATEFILE_SYMLEN ) );
 		if( AddOrUpdateFile == NULL )
-			throw std::exception( "GModDataPack::AddOrUpdateFile detour failed" );
+			throw std::runtime_error( "GModDataPack::AddOrUpdateFile detour failed" );
 
 		AddOrUpdateFile_d = new MologieDetours::Detour<AddOrUpdateFile_t>( AddOrUpdateFile, reinterpret_cast<AddOrUpdateFile_t>( AddOrUpdateFile_h ) );
 
