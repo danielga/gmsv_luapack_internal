@@ -3,6 +3,7 @@
 #include <SymbolFinder.hpp>
 #include <MologieDetours/detours.h>
 #include <stdexcept>
+#include <string>
 #include <stdint.h>
 #include <stdio.h>
 #include <sha1.h>
@@ -197,14 +198,87 @@ LUA_FUNCTION_STATIC( hasher_final )
 	return 1;
 }
 
+static void SubstituteChar( std::string &path, char part, char sub )
+{
+	size_t pos = path.find( part );
+	while( pos != path.npos )
+	{
+		path.erase( pos, 1 );
+		path.insert( pos, 1, sub );
+		pos = path.find( part, pos + 1 );
+	}
+}
+
+static void RemovePart( std::string &path, const char *part )
+{
+	size_t len = strlen( part ), pos = path.find( part );
+	while( pos != path.npos )
+	{
+		path.erase( pos, len );
+		pos = path.find( part, pos );
+	}
+}
+
+inline void FixPath( std::string &path )
+{
+	SubstituteChar( path, '\\', '/' );
+	RemovePart( path, "../" );
+	RemovePart( path, "./" );
+}
+
+static bool HasWhitelistedExtension( const char *cpath )
+{
+	std::string path = cpath;
+	size_t extstart = path.find( '.' );
+	if( extstart != path.npos )
+	{
+		size_t lastslash = path.find( '/' );
+		if( lastslash != path.npos && lastslash > extstart )
+			return false;
+
+		std::string ext = path.substr( extstart + 1 );
+		return ext == "txt" || ext == "dat" || ext == "lua";
+	}
+
+	return false;
+}
+
 LUA_FUNCTION_STATIC( luapack_rename )
 {
 	LUA->CheckType( 1, GarrysMod::Lua::Type::STRING );
+	LUA->CheckType( 2, GarrysMod::Lua::Type::STRING );
 
-	char newto[70];
-	snprintf( newto, sizeof( newto ), "garrysmod/data/luapack/%s.dat", LUA->GetString( 1 ) );
+	const char *luafrom = LUA->GetString( 1 );
+	if( HasWhitelistedExtension( luafrom ) )
+	{
+		LUA->PushBool( false );
+		return 1;
+	}
 
-	LUA->PushBool( rename( "garrysmod/data/luapack/temp.dat", newto ) == 0 );
+	const char *luato = LUA->GetString( 2 );
+	if( HasWhitelistedExtension( luato ) )
+	{
+		LUA->PushBool( false );
+		return 1;
+	}
+
+	bool success = false;
+
+	// Lua (LuaJIT in x86 in particular) doesn't exactly like RAII.
+	// Let's make a specific scope just for our logic.
+	{
+		std::string from = "garrysmod/";
+		from += luafrom;
+		FixPath( from );
+
+		std::string to = "garrysmod/";
+		to += luato;
+		FixPath( to );
+		
+		success = rename( from.c_str( ), to.c_str( ) ) == 0;
+	}
+
+	LUA->PushBool( success );
 	return 1;
 }
 
