@@ -219,16 +219,8 @@ static void RemovePart( std::string &path, const char *part )
 	}
 }
 
-inline void FixPath( std::string &path )
+static bool HasWhitelistedExtension( const std::string &path )
 {
-	SubstituteChar( path, '\\', '/' );
-	RemovePart( path, "../" );
-	RemovePart( path, "./" );
-}
-
-static bool HasWhitelistedExtension( const char *cpath )
-{
-	std::string path = cpath;
 	size_t extstart = path.find( '.' );
 	if( extstart != path.npos )
 	{
@@ -243,42 +235,35 @@ static bool HasWhitelistedExtension( const char *cpath )
 	return false;
 }
 
+static bool Rename( const char *f, const char *t )
+{
+	std::string from = "garrysmod/";
+	from += f;
+	if( !HasWhitelistedExtension( from ) )
+		return false;
+
+	std::string to = "garrysmod/";
+	to += t;
+	if( !HasWhitelistedExtension( to ) )
+		return false;
+
+	SubstituteChar( from, '\\', '/' );
+	RemovePart( from, "../" );
+	RemovePart( from, "./" );
+
+	SubstituteChar( to, '\\', '/' );
+	RemovePart( to, "../" );
+	RemovePart( to, "./" );
+
+	return rename( from.c_str( ), to.c_str( ) ) == 0;
+}
+
 LUA_FUNCTION_STATIC( luapack_rename )
 {
 	LUA->CheckType( 1, GarrysMod::Lua::Type::STRING );
 	LUA->CheckType( 2, GarrysMod::Lua::Type::STRING );
 
-	const char *luafrom = LUA->GetString( 1 );
-	if( HasWhitelistedExtension( luafrom ) )
-	{
-		LUA->PushBool( false );
-		return 1;
-	}
-
-	const char *luato = LUA->GetString( 2 );
-	if( HasWhitelistedExtension( luato ) )
-	{
-		LUA->PushBool( false );
-		return 1;
-	}
-
-	bool success = false;
-
-	// Lua (LuaJIT in x86 in particular) doesn't exactly like RAII.
-	// Let's make a specific scope just for our logic.
-	{
-		std::string from = "garrysmod/";
-		from += luafrom;
-		FixPath( from );
-
-		std::string to = "garrysmod/";
-		to += luato;
-		FixPath( to );
-		
-		success = rename( from.c_str( ), to.c_str( ) ) == 0;
-	}
-
-	LUA->PushBool( success );
+	LUA->PushBool( Rename( LUA->GetString( 1 ), LUA->GetString( 2 ) ) );
 	return 1;
 }
 
