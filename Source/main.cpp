@@ -221,10 +221,10 @@ static void RemovePart( std::string &path, const char *part )
 
 static bool HasWhitelistedExtension( const std::string &path )
 {
-	size_t extstart = path.find( '.' );
+	size_t extstart = path.rfind( '.' );
 	if( extstart != path.npos )
 	{
-		size_t lastslash = path.find( '/' );
+		size_t lastslash = path.rfind( '/' );
 		if( lastslash != path.npos && lastslash > extstart )
 			return false;
 
