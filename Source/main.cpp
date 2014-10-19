@@ -8,6 +8,16 @@
 #include <stdio.h>
 #include <sha1.h>
 
+#define HASHER_METATABLE "SHA1"
+#define HASHER_TYPE 31
+
+#define THROW_ERROR( error ) ( LUA->ThrowError( error ), 0 )
+#define LUA_ERROR( ) THROW_ERROR( LUA->GetString( ) )
+
+#define GET_USERDATA( index ) reinterpret_cast<GarrysMod::Lua::UserData *>( LUA->GetUserdata( index ) )
+#define GET_HASHER( index ) reinterpret_cast<sha1_context *>( GET_USERDATA( index )->data )
+#define VALIDATE_HASHER( hasher ) if( hasher == 0 ) return THROW_ERROR( HASHER_METATABLE " object is not valid" )
+
 #if defined _WIN32
 
 #define snprintf _snprintf
@@ -118,16 +128,6 @@ void CDECL AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool b )
 	lua->Pop( 1 );
 	return AddOrUpdateFile( self, file, b );
 }
-
-#define HASHER_METATABLE "SHA1"
-#define HASHER_TYPE 31
-
-#define THROW_ERROR( error ) ( LUA->ThrowError( error ), 0 )
-#define LUA_ERROR( ) THROW_ERROR( LUA->GetString( ) )
-
-#define GET_USERDATA( index ) reinterpret_cast<GarrysMod::Lua::UserData *>( LUA->GetUserdata( index ) )
-#define GET_HASHER( index ) reinterpret_cast<sha1_context *>( GET_USERDATA( index )->data )
-#define VALIDATE_HASHER( hasher ) if( hasher == 0 ) return THROW_ERROR( HASHER_METATABLE " object is not valid" )
 
 LUA_FUNCTION_STATIC( hasher__new )
 {
@@ -323,6 +323,7 @@ GMOD_MODULE_OPEN( )
  
 GMOD_MODULE_CLOSE( )
 {
+	(void)state;
 	delete AddOrUpdateFile_d;
 	return 0;
 }

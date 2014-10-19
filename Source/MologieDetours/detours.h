@@ -437,7 +437,7 @@ namespace MologieDetours
 			// Reprotect original function
 			if(!MOLOGIE_DETOURS_MEMORY_REPROTECT(targetFunction, MOLOGIE_DETOURS_DETOUR_SIZE, dwProt))
 			{
-			    throw DetourPageProtectionException("Failed to change page protection of original function", reinterpret_cast<void*>(targetFunction));
+				throw DetourPageProtectionException("Failed to change page protection of original function", reinterpret_cast<void*>(targetFunction));
 			}
 
 			// Flush instruction cache on Windows
@@ -484,7 +484,7 @@ namespace MologieDetours
 			// Reprotect original function
 			if(!MOLOGIE_DETOURS_MEMORY_REPROTECT(pSource_, MOLOGIE_DETOURS_DETOUR_SIZE, dwProt))
 			{
-			    throw DetourPageProtectionException("Failed to change page protection of original function", trampoline_);
+				throw DetourPageProtectionException("Failed to change page protection of original function", trampoline_);
 			}
 
 			// Free memory allocated for trampoline and original code
@@ -516,10 +516,10 @@ namespace MologieDetours
 			{
 #if defined(MOLOGIE_DETOURS_HDE_32)
 				hde32s hs = { 0 };
-				uint8_t i = hde32_disasm(pbCurOp, &hs);
+				uint8_t i = static_cast<uint8_t>(hde32_disasm(pbCurOp, &hs));
 #elif defined(MOLOGIE_DETOURS_HDE_64)
 				hde64s hs = { 0 };
-				uint8_t i = hde64_disasm(pbCurOp, &hs);
+				uint8_t i = static_cast<uint8_t>(hde64_disasm(pbCurOp, &hs));
 #endif
 				if(i == 0)
 				{
@@ -699,7 +699,7 @@ namespace MologieDetours
 		function_type pSourceBackup_;
 		function_type pDetour_;
 #ifndef _WIN32
-        long int pageSize_;
+		long int pageSize_;
 #endif
 	};
 
