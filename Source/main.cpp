@@ -20,6 +20,12 @@
 
 #if defined _WIN32
 
+#define GOOD_SEPARATOR '\\'
+#define BAD_SEPARATOR '/'
+
+#define PARENT_DIRECTORY "..\\"
+#define CURRENT_DIRECTORY ".\\"
+
 #define snprintf _snprintf
 
 #define FASTCALL __fastcall
@@ -31,6 +37,12 @@
 #define ADDORUPDATEFILE_SYMLEN 16
 
 #elif defined __linux || defined __APPLE__
+
+#define GOOD_SEPARATOR '/'
+#define BAD_SEPARATOR '\\'
+
+#define PARENT_DIRECTORY "../"
+#define CURRENT_DIRECTORY "./"
 
 #define CDECL __attribute__((cdecl))
 
@@ -224,7 +236,7 @@ static bool HasWhitelistedExtension( const std::string &path )
 	size_t extstart = path.rfind( '.' );
 	if( extstart != path.npos )
 	{
-		size_t lastslash = path.rfind( '/' );
+		size_t lastslash = path.rfind( GOOD_SEPARATOR );
 		if( lastslash != path.npos && lastslash > extstart )
 			return false;
 
@@ -237,23 +249,27 @@ static bool HasWhitelistedExtension( const std::string &path )
 
 static bool Rename( const char *f, const char *t )
 {
-	std::string from = "garrysmod/";
+	std::string from = "garrysmod";
+	from += GOOD_SEPARATOR;
 	from += f;
+
+	SubstituteChar( from, BAD_SEPARATOR, GOOD_SEPARATOR );
 	if( !HasWhitelistedExtension( from ) )
 		return false;
 
-	std::string to = "garrysmod/";
+	std::string to = "garrysmod";
+	to += GOOD_SEPARATOR;
 	to += t;
+
+	SubstituteChar( to, BAD_SEPARATOR, GOOD_SEPARATOR );
 	if( !HasWhitelistedExtension( to ) )
 		return false;
 
-	SubstituteChar( from, '\\', '/' );
-	RemovePart( from, "../" );
-	RemovePart( from, "./" );
+	RemovePart( from, PARENT_DIRECTORY );
+	RemovePart( from, CURRENT_DIRECTORY );
 
-	SubstituteChar( to, '\\', '/' );
-	RemovePart( to, "../" );
-	RemovePart( to, "./" );
+	RemovePart( to, PARENT_DIRECTORY );
+	RemovePart( to, CURRENT_DIRECTORY );
 
 	return rename( from.c_str( ), to.c_str( ) ) == 0;
 }
