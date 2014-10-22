@@ -1,4 +1,3 @@
-SDK_FOLDER = "E:/Programming/source-sdk-2013/mp/src"
 GARRYSMOD_MODULE_BASE_FOLDER = "../gmod-module-base"
 SOURCE_FOLDER = "../Source"
 PROJECT_FOLDER = os.get() .. "/" .. _ACTION
@@ -27,12 +26,10 @@ solution("gmsv_luapack_internal")
 
 	project("gmsv_luapack_internal")
 		kind("SharedLib")
-		defines({"GMMODULE", "GAME_DLL"})
+		defines({"GMMODULE"})
 		includedirs({
 			SOURCE_FOLDER,
-			GARRYSMOD_MODULE_BASE_FOLDER .. "/include",
-			SDK_FOLDER .. "/public",
-			SDK_FOLDER .. "/public/tier0"
+			GARRYSMOD_MODULE_BASE_FOLDER .. "/include"
 		})
 		files({
 			SOURCE_FOLDER .. "/*.cpp",
@@ -40,8 +37,7 @@ solution("gmsv_luapack_internal")
 			SOURCE_FOLDER .. "/*.c",
 			SOURCE_FOLDER .. "/*.h",
 			SOURCE_FOLDER .. "/MologieDetours/hde.cpp",
-			SOURCE_FOLDER .. "/MologieDetours/detours.h",
-			SDK_FOLDER .. "/public/tier0/memoverride.cpp"
+			SOURCE_FOLDER .. "/MologieDetours/detours.h"
 		})
 		vpaths({
 			["Header files"] = {
@@ -51,30 +47,18 @@ solution("gmsv_luapack_internal")
 			["Source files"] = {
 				SOURCE_FOLDER .. "/**.cpp",
 				SOURCE_FOLDER .. "/**.c",
-				SOURCE_FOLDER .. "/MologieDetours/**.cpp",
-				SDK_FOLDER .. "/**.cpp"
+				SOURCE_FOLDER .. "/MologieDetours/**.cpp"
 			}
 		})
-		links({"lua_shared", "tier0", "tier1"})
 		
 		targetprefix("")
 		targetextension(".dll")
 
 		configuration("windows")
-			defines({"SUPPRESS_INVALID_PARAMETER_NO_INFO"})
-			libdirs({GARRYSMOD_MODULE_BASE_FOLDER, SDK_FOLDER .. "/lib/public"})
 			targetsuffix("_win32")
 
-			filter({"system:windows", "configurations:Release"})
-				linkoptions({"/NODEFAULTLIB:libcmtd.lib"})
-
-			filter({"system:windows", "configurations:Debug"})
-				linkoptions({"/NODEFAULTLIB:libcmt.lib"})
-
 		configuration("linux")
-			libdirs({SDK_FOLDER .. "/lib/public/linux32"})
 			targetsuffix("_linux")
 
 		configuration("macosx")
-			libdirs({SDK_FOLDER .. "/lib/public/osx32"})
 			targetsuffix("_mac")
