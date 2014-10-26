@@ -54,11 +54,16 @@ solution("gmsv_luapack_internal")
 		targetprefix("")
 		targetextension(".dll")
 
+		filter("action:gmake")
+			linkoptions({"-static-libgcc", "-static-libstdc++"})
+
 		configuration("windows")
 			targetsuffix("_win32")
 
 		configuration("linux")
+			links({"dl"})
 			targetsuffix("_linux")
 
 		configuration("macosx")
+			links({"dl"})
 			targetsuffix("_mac")
