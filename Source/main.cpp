@@ -15,7 +15,7 @@
 #define LUA_ERROR( ) THROW_ERROR( LUA->GetString( ) )
 
 #define GET_USERDATA( index ) reinterpret_cast<GarrysMod::Lua::UserData *>( LUA->GetUserdata( index ) )
-#define GET_HASHER( index ) reinterpret_cast<sha1_context *>( GET_USERDATA( index )->data )
+#define GET_HASHER( index ) reinterpret_cast<SHA1_CTX *>( GET_USERDATA( index )->data )
 #define VALIDATE_HASHER( hasher ) if( hasher == 0 ) return THROW_ERROR( HASHER_METATABLE " object is not valid" )
 
 #if defined _WIN32
@@ -145,8 +145,8 @@ LUA_FUNCTION_STATIC( hasher__new )
 {
 	try
 	{
-		sha1_context *context = new sha1_context;
-		sha1_starts( context );
+		SHA1_CTX *context = new SHA1_CTX;
+		SHA1Init( context );
 
 		void *luadata = LUA->NewUserdata( sizeof( GarrysMod::Lua::UserData ) );
 		GarrysMod::Lua::UserData *userdata = reinterpret_cast<GarrysMod::Lua::UserData *>( luadata );
@@ -171,7 +171,7 @@ LUA_FUNCTION_STATIC( hasher__gc )
 	LUA->CheckType( 1, HASHER_TYPE );
 
 	GarrysMod::Lua::UserData *userdata = GET_USERDATA( 1 );
-	sha1_context *hasher = reinterpret_cast<sha1_context *>( userdata->data );
+	SHA1_CTX *hasher = reinterpret_cast<SHA1_CTX *>( userdata->data );
 	VALIDATE_HASHER( hasher );
 
 	userdata->data = 0;
@@ -185,13 +185,13 @@ LUA_FUNCTION_STATIC( hasher_update )
 	LUA->CheckType( 1, HASHER_TYPE );
 	LUA->CheckType( 2, GarrysMod::Lua::Type::STRING );
 
-	sha1_context *hasher = GET_HASHER( 1 );
+	SHA1_CTX *hasher = GET_HASHER( 1 );
 	VALIDATE_HASHER( hasher );
 
 	uint32_t len = 0;
 	const uint8_t *data = reinterpret_cast<const uint8_t *>( LUA->GetString( 2, &len ) );
 
-	sha1_update( hasher, data, len );
+	SHA1Update( hasher, const_cast<uint8_t *>( data ), len );
 
 	return 0;
 }
@@ -200,11 +200,11 @@ LUA_FUNCTION_STATIC( hasher_final )
 {
 	LUA->CheckType( 1, HASHER_TYPE );
 
-	sha1_context *hasher = GET_HASHER( 1 );
+	SHA1_CTX *hasher = GET_HASHER( 1 );
 	VALIDATE_HASHER( hasher );
 
 	uint8_t digest[20];
-	sha1_finish( hasher, digest );
+	SHA1Final( hasher, digest );
 
 	LUA->PushString( reinterpret_cast<const char *>( digest ), sizeof( digest ) );
 	return 1;
