@@ -1,3 +1,11 @@
+gmsv_luapack_internal
+=====================
+
+A Garry's Mod module that complements the LuaPack project.
+
+Info
+-------
+
 Mac was not tested at all (sorry but I'm cheap and lazy).
 
 If stuff starts erroring or fails to work, be sure to check the correct line endings (\n and such) are present in the files for each OS.
