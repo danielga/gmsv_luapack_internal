@@ -31,7 +31,7 @@ solution("gmsv_luapack_internal")
 		defines({"GMMODULE"})
 		includedirs({
 			SOURCE_FOLDER,
-			GARRYSMOD_MODULE_BASE_FOLDER .. "/include"
+			GARRYSMOD_MODULE_BASE_FOLDER .. "/include",
 			SCANNING_FOLDER,
 			DETOURING_FOLDER
 		})

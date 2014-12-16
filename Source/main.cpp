@@ -1,7 +1,7 @@
 #include <GarrysMod/Lua/Interface.h>
 #include <GarrysMod/Lua/LuaInterface.h>
 #include <SymbolFinder.hpp>
-#include <MologieDetours/detours.h>
+#include <detours.h>
 #include <stdexcept>
 #include <string>
 #include <sstream>
@@ -31,7 +31,7 @@
 
 	#define SERVER_BINARY "server.dll"
 
-	#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x8B\x75\x08\x83\xC6\x04\x83\x7E" )
+	#define ADDORUPDATEFILE_SYM "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x8B\x75\x08\x83\xC6\x04\x83\x7E"
 	#define ADDORUPDATEFILE_SYMLEN 16
 
 #elif defined __linux || defined __APPLE__
@@ -58,7 +58,7 @@
 
 	#endif
 
-	#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( SYMBOL_PREFIX "_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb" )
+	#define ADDORUPDATEFILE_SYM SYMBOL_PREFIX "_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb"
 	#define ADDORUPDATEFILE_SYMLEN 0
 
 #endif
