@@ -4,8 +4,8 @@
 #include <MologieDetours/detours.h>
 #include <stdexcept>
 #include <string>
+#include <sstream>
 #include <stdint.h>
-#include <stdio.h>
 #include <sha1.h>
 
 #define HASHER_METATABLE "SHA1"
@@ -16,56 +16,52 @@
 
 #define GET_USERDATA( index ) reinterpret_cast<GarrysMod::Lua::UserData *>( LUA->GetUserdata( index ) )
 #define GET_HASHER( index ) reinterpret_cast<SHA1_CTX *>( GET_USERDATA( index )->data )
-#define VALIDATE_HASHER( hasher ) if( hasher == 0 ) return THROW_ERROR( HASHER_METATABLE " object is not valid" )
+#define VALIDATE_HASHER( hasher ) if( hasher == nullptr ) return THROW_ERROR( HASHER_METATABLE " object is not valid" )
 
 #if defined _WIN32
 
-#define GOOD_SEPARATOR '\\'
-#define BAD_SEPARATOR '/'
+	#define GOOD_SEPARATOR '\\'
+	#define BAD_SEPARATOR '/'
 
-#define PARENT_DIRECTORY "..\\"
-#define CURRENT_DIRECTORY ".\\"
+	#define PARENT_DIRECTORY "..\\"
+	#define CURRENT_DIRECTORY ".\\"
 
-#define snprintf _snprintf
+	#define __FASTCALL __fastcall
+	#define __THISCALL __thiscall
 
-#define FASTCALL __fastcall
-#define THISCALL __thiscall
+	#define SERVER_BINARY "server.dll"
 
-#define SERVER_BINARY "server.dll"
-
-#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x8B\x75\x08\x83\xC6\x04\x83\x7E" )
-#define ADDORUPDATEFILE_SYMLEN 16
+	#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x8B\x75\x08\x83\xC6\x04\x83\x7E" )
+	#define ADDORUPDATEFILE_SYMLEN 16
 
 #elif defined __linux || defined __APPLE__
 
-#define GOOD_SEPARATOR '/'
-#define BAD_SEPARATOR '\\'
+	#define GOOD_SEPARATOR '/'
+	#define BAD_SEPARATOR '\\'
 
-#define PARENT_DIRECTORY "../"
-#define CURRENT_DIRECTORY "./"
+	#define PARENT_DIRECTORY "../"
+	#define CURRENT_DIRECTORY "./"
 
-#define CDECL __attribute__((cdecl))
+	#define __CDECL __attribute__((cdecl))
 
-#if defined __linux
+	#if defined __linux
 
-#define SERVER_BINARY "garrysmod/bin/server_srv.so"
+		#define SERVER_BINARY "garrysmod/bin/server_srv.so"
 
-#define SYMBOL_PREFIX "@"
+		#define SYMBOL_PREFIX "@"
 
-#else
+	#else
 
-#define SERVER_BINARY "garrysmod/bin/server.dylib"
+		#define SERVER_BINARY "garrysmod/bin/server.dylib"
 
-#define SYMBOL_PREFIX "@_"
+		#define SYMBOL_PREFIX "@_"
+
+	#endif
+
+	#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( SYMBOL_PREFIX "_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb" )
+	#define ADDORUPDATEFILE_SYMLEN 0
 
 #endif
-
-#define ADDORUPDATEFILE_SYM reinterpret_cast<const uint8_t *>( SYMBOL_PREFIX "_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb" )
-#define ADDORUPDATEFILE_SYMLEN 0
-
-#endif
-
-GarrysMod::Lua::ILuaInterface *lua = NULL;
 
 class GModDataPack;
 
@@ -75,70 +71,94 @@ struct LuaFile
 	const char *path;
 };
 
+static GarrysMod::Lua::ILuaInterface *lua = nullptr;
+
+LUA_FUNCTION_STATIC( ErrorTraceback )
+{
+	GarrysMod::Lua::ILuaInterface *lua = static_cast<GarrysMod::Lua::ILuaInterface *>( LUA );
+
+	std::string spaces( 2, ' ' );
+	std::ostringstream stream;
+	stream << LUA->GetString( 1 ) << '\n';
+
+	lua_Debug dbg = { 0 };
+	for( int level = 1; lua->GetStack( level, &dbg ) == 1; ++level, memset( &dbg, 0, sizeof( dbg ) ) )
+	{
+		if( level != 1 )
+			stream << '\n';
+
+		lua->GetInfo( "Sln", &dbg );
+		stream
+			<< spaces
+			<< level
+			<< ". "
+			<< ( dbg.name == nullptr ? "unknown" : dbg.name )
+			<< " - "
+			<< dbg.short_src
+			<< ':'
+			<< dbg.currentline;
+		spaces += ' ';
+	}
+
+	LUA->PushString( stream.str( ).c_str( ) );
+	return 1;
+}
+
+LUA_FUNCTION_STATIC( HookRun )
+{
+	int args = LUA->Top( );
+
+	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
+	LUA->GetField( -1, "hook" );
+	LUA->GetField( -1, "Run" );
+
+	for( int i = 1; i <= args; ++i )
+		LUA->Push( i );
+
+	LUA->Call( args, 1 );
+	return 1;
+}
+
 #if defined _WIN32
 
-typedef void ( THISCALL *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
+typedef void ( __THISCALL *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
 
 #elif defined __linux || defined __APPLE__
 
-typedef void ( CDECL *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
+typedef void ( __CDECL *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
 
 #endif
  
-AddOrUpdateFile_t AddOrUpdateFile = NULL;
-MologieDetours::Detour<AddOrUpdateFile_t> *AddOrUpdateFile_d = NULL;
+static AddOrUpdateFile_t AddOrUpdateFile = nullptr;
+static MologieDetours::Detour<AddOrUpdateFile_t> *AddOrUpdateFile_d = nullptr;
 
 #if defined _WIN32
 
-void FASTCALL AddOrUpdateFile_h( GModDataPack *self, void *, LuaFile *file, bool b )
+void __FASTCALL AddOrUpdateFile_h( GModDataPack *self, void *, LuaFile *file, bool b )
 
 #elif defined __linux || defined __APPLE__
 
-void CDECL AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool b )
+void __CDECL AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool b )
 
 #endif
 
 {
-	lua->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
-	if( lua->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
-	{
-		lua->GetField( -1, "hook" );
-		if( lua->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
-		{
-			lua->GetField( -1, "Run" );
-			if( lua->IsType( -1, GarrysMod::Lua::Type::FUNCTION ) )
-			{
-				lua->PushString( "AddOrUpdateCSLuaFile" );
+	lua->PushCFunction( ErrorTraceback );
+	lua->PushCFunction( HookRun );
+	lua->PushString( "AddOrUpdateCSLuaFile" );
+	lua->PushString( file->path );
+	lua->PushBool( b );
 
-				lua->PushString( file->path );
-				lua->PushBool( b );
-
-				if( lua->PCall( 3, 1, 0 ) != 0 )
-				{
-					lua->Msg( "[luapack_internal] %s\n", lua->GetString( ) );
-					lua->Pop( 3 );
-					return AddOrUpdateFile( self, file, b );
-				}
-
-				if( lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) && lua->GetBool( ) )
-				{
-					lua->Pop( 3 );
-					return;
-				}
-
-				lua->Pop( 1 );
-			}
-			else
-			{
-				lua->Pop( 1 );
-			}
-		}
-
-		lua->Pop( 1 );
-	}
+	bool dontcall = false;
+	if( lua->PCall( 3, 1, -5 ) == 0 )
+		dontcall = lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) && !lua->GetBool( -1 );
+	else
+		lua->Msg( "\n[ERROR] %s\n\n", lua->GetString( -1 ) );
 
 	lua->Pop( 1 );
-	return AddOrUpdateFile( self, file, b );
+
+	if( !dontcall )
+		return AddOrUpdateFile( self, file, b );
 }
 
 LUA_FUNCTION_STATIC( hasher__new )
@@ -318,7 +338,7 @@ GMOD_MODULE_OPEN( )
 		SymbolFinder symfinder;
 
 		AddOrUpdateFile = reinterpret_cast<AddOrUpdateFile_t>( symfinder.ResolveOnBinary( SERVER_BINARY, ADDORUPDATEFILE_SYM, ADDORUPDATEFILE_SYMLEN ) );
-		if( AddOrUpdateFile == NULL )
+		if( AddOrUpdateFile == nullptr )
 			throw std::runtime_error( "GModDataPack::AddOrUpdateFile detour failed" );
 
 		AddOrUpdateFile_d = new MologieDetours::Detour<AddOrUpdateFile_t>( AddOrUpdateFile, reinterpret_cast<AddOrUpdateFile_t>( AddOrUpdateFile_h ) );
