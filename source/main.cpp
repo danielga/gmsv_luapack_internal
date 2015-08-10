@@ -3,7 +3,6 @@
 #include <lua.hpp>
 #include <symbolfinder.hpp>
 #include <detours.h>
-#include <sha1.h>
 #include <cstdint>
 #include <string>
 #include <sstream>
@@ -46,7 +45,7 @@ struct LuaFile // 116 bytes
 	bool unkbool2;
 };
 
-namespace Global
+namespace global
 {
 
 #if defined _WIN32
@@ -88,52 +87,6 @@ static GarrysMod::Lua::ILuaInterface *lua = nullptr;
 static IFileSystem *filesystem = nullptr;
 static char fullpath[260] = { 0 };
 
-LUA_FUNCTION_STATIC( ErrorTraceback )
-{
-	GarrysMod::Lua::ILuaInterface *lua = static_cast<GarrysMod::Lua::ILuaInterface *>( LUA );
-
-	std::string spaces( 2, ' ' );
-	std::ostringstream stream;
-	stream << LUA->GetString( 1 );
-
-	lua_Debug dbg = { 0 };
-	for( int32_t lvl = 1; lua->GetStack( lvl, &dbg ) == 1; ++lvl, memset( &dbg, 0, sizeof( dbg ) ) )
-	{
-		if( lua->GetInfo( "Sln", &dbg ) == 0 )
-			break;
-
-		stream
-			<< '\n'
-			<< spaces
-			<< lvl
-			<< ". "
-			<< ( dbg.name == nullptr ? "unknown" : dbg.name )
-			<< " - "
-			<< dbg.short_src
-			<< ':'
-			<< dbg.currentline;
-		spaces += ' ';
-	}
-
-	LUA->PushString( stream.str( ).c_str( ) );
-	return 1;
-}
-
-LUA_FUNCTION_STATIC( hook_Call )
-{
-	int32_t args = LUA->Top( );
-
-	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
-	LUA->GetField( -1, "hook" );
-	LUA->GetField( -1, "Call" );
-
-	for( int32_t i = 1; i <= args; ++i )
-		LUA->Push( i );
-
-	LUA->Call( args, 1 );
-	return 1;
-}
-
 #if defined _WIN32
 
 typedef void ( __thiscall *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
@@ -158,8 +111,9 @@ void AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool reload )
 #endif
 
 {
-	lua->PushCFunction( ErrorTraceback );
-	lua->PushCFunction( hook_Call );
+	lua->ReferencePush( 1 );
+	lua->GetField( GarrysMod::Lua::INDEX_GLOBAL, "hook" );
+	lua->GetField( -1, "Call" );
 	lua->PushString( "AddOrUpdateCSLuaFile" );
 	lua->PushNil( );
 	lua->PushString( file->path[0] );
@@ -171,7 +125,7 @@ void AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool reload )
 	else
 		lua->Msg( "\n[ERROR] %s\n\n", lua->GetString( -1 ) );
 
-	lua->Pop( 2 );
+	lua->Pop( 3 );
 
 	if( !dontcall )
 		return AddOrUpdateFile( self, file, reload );
@@ -218,7 +172,7 @@ static void Deinitialize( lua_State *state )
 
 }
 
-namespace LuaPack
+namespace luapack
 {
 
 static bool IsPathAllowed( std::string &filename )
@@ -265,133 +219,18 @@ LUA_FUNCTION_STATIC( Rename )
 		return 1;
 	}
 
-	LUA->PushBool( Global::filesystem->RenameFile( fname.c_str( ), fnew.c_str( ), pathid.c_str( ) ) );
+	LUA->PushBool( global::filesystem->RenameFile( fname.c_str( ), fnew.c_str( ), pathid.c_str( ) ) );
 	return 1;
 }
 
 static void Initialize( lua_State *state )
 {
-	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
-
-	LUA->GetField( -1, "luapack" );
+	LUA->GetField( GarrysMod::Lua::INDEX_GLOBAL, "luapack" );
 	if( !LUA->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
 		LUA->ThrowError( "luapack table not found" );
 
 	LUA->PushCFunction( Rename );
 	LUA->SetField( -2, "Rename" );
-
-	LUA->Pop( 2 );
-}
-
-static void Deinitialize( lua_State * )
-{ }
-
-}
-
-namespace Hasher
-{
-
-struct UserData
-{
-	SHA1_CTX *pcontext;
-	uint8_t type;
-	SHA1_CTX context;
-};
-
-static const char *metaname = "SHA1";
-static const uint8_t metaid = 130;
-static const char *invalid_error = "invalid SHA1";
-
-static SHA1_CTX *Get( lua_State *state, int32_t index )
-{
-	if( !LUA->IsType( index, metaid ) )
-		static_cast<GarrysMod::Lua::ILuaInterface *>( LUA )->TypeError( metaname, index );
-
-	SHA1_CTX *hasher = static_cast<UserData *>( LUA->GetUserdata( index ) )->pcontext;
-	if( hasher == nullptr )
-		LUA->ArgError( index, invalid_error );
-
-	return hasher;
-}
-
-inline void Create( lua_State *state )
-{
-	UserData *udata = static_cast<UserData *>( LUA->NewUserdata( sizeof( UserData ) ) );
-	udata->pcontext = &udata->context;
-	udata->type = metaid;
-
-	SHA1Init( udata->pcontext );
-
-	LUA->CreateMetaTableType( metaname, metaid );
-	LUA->SetMetaTable( -2 );
-}
-
-LUA_FUNCTION_STATIC( Constructor )
-{
-	Create( state );
-	return 1;
-}
-
-LUA_FUNCTION_STATIC( Update )
-{
-	SHA1_CTX *hasher = Get( state, 1 );
-	LUA->CheckType( 2, GarrysMod::Lua::Type::STRING );
-
-	uint32_t len = 0;
-	const uint8_t *data = reinterpret_cast<const uint8_t *>( LUA->GetString( 2, &len ) );
-
-	SHA1Update( hasher, const_cast<uint8_t *>( data ), len );
-
-	return 0;
-}
-
-LUA_FUNCTION_STATIC( Final )
-{
-	SHA1_CTX *hasher = Get( state, 1 );
-
-	uint8_t digest[20] = { 0 };
-	SHA1Final( hasher, digest );
-
-	LUA->PushString( reinterpret_cast<char *>( digest ), sizeof( digest ) );
-	return 1;
-}
-
-static void Initialize( lua_State *state )
-{
-	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
-
-	LUA->PushCFunction( Constructor );
-	LUA->SetField( -2, metaname );
-
-	LUA->Pop( 1 );
-
-	LUA->CreateMetaTableType( metaname, metaid );
-
-	LUA->Push( -1 );
-	LUA->SetField( -2, "__index" );
-
-	LUA->PushCFunction( Update );
-	LUA->SetField( -2, "Update" );
-
-	LUA->PushCFunction( Final );
-	LUA->SetField( -2, "Final" );
-
-	LUA->Pop( 1 );
-}
-
-static void Deinitialize( lua_State *state )
-{
-	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_GLOB );
-
-	LUA->PushNil( );
-	LUA->SetField( -2, metaname );
-
-	LUA->Pop( 1 );
-
-	LUA->PushSpecial( GarrysMod::Lua::SPECIAL_REG );
-
-	LUA->PushNil( );
-	LUA->SetField( -2, metaname );
 
 	LUA->Pop( 1 );
 }
@@ -400,16 +239,13 @@ static void Deinitialize( lua_State *state )
 
 GMOD_MODULE_OPEN( )
 {
-	Global::Initialize( state );
-	LuaPack::Initialize( state );
-	Hasher::Initialize( state );
+	global::Initialize( state );
+	luapack::Initialize( state );
 	return 0;
 }
  
 GMOD_MODULE_CLOSE( )
 {
-	Hasher::Deinitialize( state );
-	LuaPack::Deinitialize( state );
-	Global::Deinitialize( state );
+	global::Deinitialize( state );
 	return 0;
 }
