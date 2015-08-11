@@ -5,7 +5,6 @@
 #include <detours.h>
 #include <cstdint>
 #include <string>
-#include <sstream>
 #include <unordered_set>
 #include <algorithm>
 
@@ -111,7 +110,8 @@ void AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool reload )
 #endif
 
 {
-	lua->ReferencePush( 1 );
+	lua->GetField( GarrysMod::Lua::INDEX_GLOBAL, "debug" );
+	lua->GetField( -1, "traceback" );
 	lua->GetField( GarrysMod::Lua::INDEX_GLOBAL, "hook" );
 	lua->GetField( -1, "Call" );
 	lua->PushString( "AddOrUpdateCSLuaFile" );
@@ -120,12 +120,12 @@ void AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool reload )
 	lua->PushBool( reload );
 
 	bool dontcall = false;
-	if( lua->PCall( 4, 1, -6 ) == 0 )
+	if( lua->PCall( 4, 1, -7 ) == 0 )
 		dontcall = lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) && !lua->GetBool( -1 );
 	else
 		lua->Msg( "\n[ERROR] %s\n\n", lua->GetString( -1 ) );
 
-	lua->Pop( 3 );
+	lua->Pop( 4 );
 
 	if( !dontcall )
 		return AddOrUpdateFile( self, file, reload );
