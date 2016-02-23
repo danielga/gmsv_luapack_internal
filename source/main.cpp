@@ -2,16 +2,15 @@
 #include <GarrysMod/Lua/LuaInterface.h>
 #include <lua.hpp>
 #include <symbolfinder.hpp>
+#include <interfaces.hpp>
 #include <detours.h>
 #include <cstdint>
 #include <string>
 #include <unordered_set>
 #include <algorithm>
-
-#undef GetCurrentDirectory
-
 #include <interface.h>
 #include <filesystem.h>
+#include <eiface.h>
 
 class GModDataPack;
 
@@ -49,21 +48,33 @@ namespace global
 
 #if defined _WIN32
 
-static const char *dedicated_lib = "dedicated.dll";
 static const char *server_lib = "server.dll";
 
-static const char *FileSystemFactory_sym = "\x55\x8B\xEC\x56\x8B\x75\x08\x68\x2A\x2A\x2A\x2A\x56\xE8";
-static const size_t FileSystemFactory_symlen = 14;
+static const char *filesystem_dedicated_lib = "dedicated.dll";
+
+static const char *FileSystemFactory_dedicated_sym = "\x55\x8B\xEC\x56\x8B\x75\x08\x68\x2A\x2A\x2A\x2A\x56\xE8";
+static const size_t FileSystemFactory_dedicated_symlen = 14;
+
+static const char *filesystem_lib = "filesystem_stdio.dll";
+
+static const char *FileSystemFactory_sym = "@CreateInterface";
+static const size_t FileSystemFactory_symlen = 0;
 
 static const char *AddOrUpdateFile_sym = "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x8B\x75\x08\x83\xC6\x04\x83\x7E";
 static const size_t AddOrUpdateFile_symlen = 16;
 
 #elif defined __linux
 
-static const char *dedicated_lib = "dedicated_srv.so";
 static const char *server_lib = "garrysmod/bin/server_srv.so";
 
-static const char *FileSystemFactory_sym = "@_Z17FileSystemFactoryPKcPi";
+static const char *filesystem_dedicated_lib = "dedicated_srv.so";
+
+static const char *FileSystemFactory_dedicated_sym = "@_Z17FileSystemFactoryPKcPi";
+static const size_t FileSystemFactory_dedicated_symlen = 0;
+
+static const char *filesystem_lib = "filesystem_stdio.so";
+
+static const char *FileSystemFactory_sym = "@CreateInterface";
 static const size_t FileSystemFactory_symlen = 0;
 
 static const char *AddOrUpdateFile_sym = "@_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb";
@@ -71,10 +82,16 @@ static const size_t AddOrUpdateFile_symlen = 0;
 
 #elif defined __APPLE__
 
-static const char *dedicated_lib = "dedicated.dylib";
 static const char *server_lib = "garrysmod/bin/server.dylib";
 
-static const char *FileSystemFactory_sym = "@__Z17FileSystemFactoryPKcPi";
+static const char *filesystem_dedicated_lib = "dedicated.dylib";
+
+static const char *FileSystemFactory_dedicated_sym = "@__Z17FileSystemFactoryPKcPi";
+static const size_t FileSystemFactory_dedicated_symlen = 0;
+
+static const char *filesystem_lib = "filesystem_stdio.dylib";
+
+static const char *FileSystemFactory_sym = "@_CreateInterface";
 static const size_t FileSystemFactory_symlen = 0;
 
 static const char *AddOrUpdateFile_sym = "@__ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb";
@@ -82,9 +99,10 @@ static const size_t AddOrUpdateFile_symlen = 0;
 
 #endif
 
+static const char *hook_name = "AddOrUpdateCSLuaFile";
+
 static GarrysMod::Lua::ILuaInterface *lua = nullptr;
 static IFileSystem *filesystem = nullptr;
-static char fullpath[260] = { 0 };
 
 #if defined _WIN32
 
@@ -110,22 +128,16 @@ void AddOrUpdateFile_h( GModDataPack *self, LuaFile *file, bool reload )
 #endif
 
 {
-	lua->GetField( GarrysMod::Lua::INDEX_GLOBAL, "debug" );
-	lua->GetField( -1, "traceback" );
-	lua->GetField( GarrysMod::Lua::INDEX_GLOBAL, "hook" );
-	lua->GetField( -1, "Call" );
-	lua->PushString( "AddOrUpdateCSLuaFile" );
-	lua->PushNil( );
+	helpers::PushHookRun( lua, hook_name );
+
 	lua->PushString( file->path[0] );
 	lua->PushBool( reload );
 
 	bool dontcall = false;
-	if( lua->PCall( 4, 1, -7 ) == 0 )
+	if( helpers::CallHookRun( lua, 2, 1 ) )
 		dontcall = lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) && !lua->GetBool( -1 );
-	else
-		lua->Msg( "\n[ERROR] %s\n\n", lua->GetString( -1 ) );
 
-	lua->Pop( 4 );
+	lua->Pop( 1 );
 
 	if( !dontcall )
 		return AddOrUpdateFile( self, file, reload );
@@ -135,20 +147,28 @@ static void Initialize( lua_State *state )
 {
 	lua = reinterpret_cast<GarrysMod::Lua::ILuaInterface *>( LUA );
 
+	SourceSDK::FactoryLoader engine_loader( "engine", false, false, "bin/" );
+	IVEngineServer *engine_server = engine_loader.GetInterface<IVEngineServer>(
+		INTERFACEVERSION_VENGINESERVER_VERSION_21
+	);
+	if( engine_server == nullptr )
+		LUA->ThrowError( "failed to retrieve server engine interface" );
+
+	bool dedicated = engine_server->IsDedicatedServer( );
+
 	SymbolFinder symfinder;
 
-	CreateInterfaceFn factory = static_cast<CreateInterfaceFn>(
-		symfinder.ResolveOnBinary( dedicated_lib, FileSystemFactory_sym, FileSystemFactory_symlen )
-	);
+	CreateInterfaceFn factory = static_cast<CreateInterfaceFn>( symfinder.ResolveOnBinary(
+		dedicated ? filesystem_dedicated_lib : filesystem_lib,
+		dedicated ? FileSystemFactory_dedicated_sym : FileSystemFactory_sym,
+		dedicated ? FileSystemFactory_dedicated_symlen : FileSystemFactory_symlen
+	) );
 	if( factory == nullptr )
-		LUA->ThrowError( "nable to retrieve dedicated factory" );
+		LUA->ThrowError( "unable to retrieve filesystem factory" );
 
 	filesystem = static_cast<IFileSystem *>( factory( FILESYSTEM_INTERFACE_VERSION, nullptr ) );
 	if( filesystem == nullptr )
 		LUA->ThrowError( "failed to initialize IFileSystem" );
-
-	if( !filesystem->GetCurrentDirectory( fullpath, sizeof( fullpath ) ) )
-		LUA->ThrowError( "unable to retrieve current directory" );
 
 	AddOrUpdateFile = reinterpret_cast<AddOrUpdateFile_t>(
 		symfinder.ResolveOnBinary( server_lib, AddOrUpdateFile_sym, AddOrUpdateFile_symlen )
@@ -235,6 +255,18 @@ static void Initialize( lua_State *state )
 	LUA->Pop( 1 );
 }
 
+static void Deinitialize( lua_State *state )
+{
+	LUA->GetField( GarrysMod::Lua::INDEX_GLOBAL, "luapack" );
+	if( !LUA->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
+		LUA->ThrowError( "luapack table not found" );
+
+	LUA->PushNil( );
+	LUA->SetField( -2, "Rename" );
+
+	LUA->Pop( 1 );
+}
+
 }
 
 GMOD_MODULE_OPEN( )
@@ -246,6 +278,7 @@ GMOD_MODULE_OPEN( )
  
 GMOD_MODULE_CLOSE( )
 {
+	luapack::Deinitialize( state );
 	global::Deinitialize( state );
 	return 0;
 }
