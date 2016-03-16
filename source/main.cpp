@@ -2,7 +2,7 @@
 #include <GarrysMod/Lua/LuaInterface.h>
 #include <lua.hpp>
 #include <symbolfinder.hpp>
-#include <interfaces.hpp>
+#include <GarrysMod/Interfaces.hpp>
 #include <detours.h>
 #include <cstdint>
 #include <string>
