@@ -158,7 +158,7 @@ static void Initialize( lua_State *state )
 
 	SymbolFinder symfinder;
 
-	CreateInterfaceFn factory = static_cast<CreateInterfaceFn>( symfinder.ResolveOnBinary(
+	CreateInterfaceFn factory = reinterpret_cast<CreateInterfaceFn>( symfinder.ResolveOnBinary(
 		dedicated ? filesystem_dedicated_lib : filesystem_lib,
 		dedicated ? FileSystemFactory_dedicated_sym : FileSystemFactory_sym,
 		dedicated ? FileSystemFactory_dedicated_symlen : FileSystemFactory_symlen
