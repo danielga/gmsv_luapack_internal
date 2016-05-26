@@ -1,8 +1,8 @@
-LuaPack - danielga.bitbucket.org/luapack
+LuaPack
 A Garry's Mod addon that attempts to speed up Lua files downloading
 by compressing and packing them.
 -----------------------------------------------------------------------
-Copyright (c) 2015, Daniel Almeida
+Copyright (c) 2015-2016, Daniel Almeida
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without

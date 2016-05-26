@@ -6,11 +6,31 @@
 #include <detours.h>
 #include <cstdint>
 #include <string>
-#include <unordered_set>
+#include <set>
 #include <algorithm>
 #include <interface.h>
 #include <filesystem.h>
 #include <eiface.h>
+
+#if defined _WIN32 && _MSC_VER != 1600
+
+#error The only supported compilation platform for this project on Windows is Visual Studio 2010 (for ABI reasons).
+
+#elif defined __linux && (__GNUC__ != 4 || (__GNUC__ == 4 && __GNUC_MINOR__ < 4))
+
+#error The only supported compilation platforms for this project on Linux are GCC 4.4 to 4.9 (for ABI reasons).
+
+#elif defined __APPLE__
+
+#include <AvailabilityMacros.h>
+
+#if MAC_OS_X_VERSION_MIN_REQUIRED > 1050
+
+#error The only supported compilation platform for this project on Mac OS X is GCC with Mac OS X 10.5 SDK (for ABI reasons).
+
+#endif
+
+#endif
 
 class GModDataPack;
 
@@ -195,12 +215,12 @@ static void Deinitialize( lua_State *state )
 namespace luapack
 {
 
+static std::set<std::string> whitelist_extensions;
+
+static std::set<std::string> whitelist_pathid;
+
 static bool IsPathAllowed( std::string &filename )
 {
-	static const std::unordered_set<std::string> whitelist_extensions = {
-		"lua", "txt", "dat"
-	};
-
 	if( !V_RemoveDotSlashes( &filename[0], CORRECT_PATH_SEPARATOR, true ) )
 		return false;
 
@@ -217,10 +237,6 @@ static bool IsPathAllowed( std::string &filename )
 
 inline bool IsPathIDAllowed( std::string &pathid )
 {
-	static const std::unordered_set<std::string> whitelist_pathid = {
-		"lsv", "lua", "data"
-	};
-
 	std::transform( pathid.begin( ), pathid.end( ), pathid.begin( ), tolower );
 	return whitelist_pathid.find( pathid ) != whitelist_pathid.end( );
 }
@@ -253,6 +269,18 @@ static void Initialize( lua_State *state )
 	LUA->SetField( -2, "Rename" );
 
 	LUA->Pop( 1 );
+
+	if( whitelist_extensions.empty( ) )
+	{
+		const std::string extensions[] = { "lua", "txt", "dat" };
+		whitelist_extensions.insert( extensions, extensions + sizeof( extensions ) / sizeof( *extensions ) );
+	}
+
+	if( whitelist_pathid.empty( ) )
+	{
+		const std::string pathid[] = { "lsv", "lua", "data" };
+		whitelist_pathid.insert( pathid, pathid + sizeof( pathid ) / sizeof( *pathid ) );
+	}
 }
 
 static void Deinitialize( lua_State *state )
