@@ -23,7 +23,8 @@ namespace Bootil
 class Buffer
 {
 public:
-	void **vtable;
+	virtual ~Buffer() = default; // For the VTable
+
 	void *data;
 	uint32_t size;
 	uint32_t pos;
@@ -31,13 +32,18 @@ public:
 };
 
 class AutoBuffer : public Buffer
-{ };
+{
+public:
+	virtual ~AutoBuffer() = default; // For the VTable
+};
 
 }
 
-struct LuaFile // 116 bytes
+class LuaFile // 116 bytes
 {
-	void **vtable;
+public:
+	virtual ~LuaFile() = default; // For the VTable
+
 	std::string path;
 	std::string parent;
 	std::string content;
@@ -191,7 +197,7 @@ LUA_FUNCTION_STATIC( Rename )
 
 static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 {
-	SourceSDK::FactoryLoader engine_loader( "engine", false, false, "bin/" );
+	SourceSDK::FactoryLoader engine_loader( "engine", false, true, "bin/" );
 
 	IVEngineServer *engine_server = engine_loader.GetInterface<IVEngineServer>(
 		INTERFACEVERSION_VENGINESERVER
@@ -219,7 +225,10 @@ static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 
 	LUA->GetField( GarrysMod::Lua::INDEX_GLOBAL, "luapack" );
 	if( !LUA->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
-		LUA->ThrowError( "luapack table not found" );
+	{
+		GModDataPackProxy::Singleton.Deinitialize(LUA);
+		LUA->ThrowError("luapack table not found");
+	}
 
 	LUA->PushCFunction( Rename );
 	LUA->SetField( -2, "Rename" );
