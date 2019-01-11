@@ -225,7 +225,10 @@ static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 
 	LUA->GetField( GarrysMod::Lua::INDEX_GLOBAL, "luapack" );
 	if( !LUA->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
-		LUA->ThrowError( "luapack table not found" );
+	{
+		GModDataPackProxy::Singleton.Deinitialize(LUA);
+		LUA->ThrowError("luapack table not found");
+	}
 
 	LUA->PushCFunction( Rename );
 	LUA->SetField( -2, "Rename" );
