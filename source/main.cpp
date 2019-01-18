@@ -60,7 +60,7 @@ namespace luapack
 static const char FileSystemFactory_dedicated_sym[] = "\x55\x8B\xEC\x68\x2A\x2A\x2A\x2A\xFF\x75\x08\xE8\x2A\x2A\x2A\x2A\x83\xC4\x08";
 static const size_t FileSystemFactory_dedicated_symlen = sizeof( FileSystemFactory_dedicated_sym ) - 1;
 
-static const char AddOrUpdateFile_sym[] = "\x55\x8B\xEC\x83\xEC\x18\x53\x56\x57\x8B\x7D\x08\x8B\xD9\x83\x7F\x18\x10";
+static const char AddOrUpdateFile_sym[] = "\x55\x8B\xEC\x83\xEC\x20\x53\x56\x57\x8B\x7D\x08\x8B\xD9\x83\x7F\x18\x10";
 static const size_t AddOrUpdateFile_symlen = sizeof( AddOrUpdateFile_sym ) - 1;
 
 #elif defined __linux || defined __APPLE__
