@@ -1,8 +1,8 @@
 #include <GarrysMod/Lua/Interface.h>
 #include <GarrysMod/Lua/Helpers.hpp>
-#include <GarrysMod/Interfaces.hpp>
+#include <GarrysMod/FunctionPointers.hpp>
+#include <GarrysMod/InterfacePointers.hpp>
 
-#include <scanning/symbolfinder.hpp>
 #include <detouring/classproxy.hpp>
 
 #include <cstdint>
@@ -54,33 +54,7 @@ public:
 
 namespace luapack
 {
-
-#if defined _WIN32
-
-static const char FileSystemFactory_dedicated_sym[] = "\x55\x8B\xEC\x68\x2A\x2A\x2A\x2A\xFF\x75\x08\xE8\x2A\x2A\x2A\x2A\x83\xC4\x08";
-static const size_t FileSystemFactory_dedicated_symlen = sizeof( FileSystemFactory_dedicated_sym ) - 1;
-
-static const char AddOrUpdateFile_sym[] = "\x55\x8B\xEC\x83\xEC\x20\x53\x56\x57\x8B\x7D\x08\x8B\xD9\x83\x7F\x18\x10";
-static const size_t AddOrUpdateFile_symlen = sizeof( AddOrUpdateFile_sym ) - 1;
-
-#elif defined __linux || defined __APPLE__
-
-static const char FileSystemFactory_dedicated_sym[] = "@_Z17FileSystemFactoryPKcPi";
-static const size_t FileSystemFactory_dedicated_symlen = 0;
-
-static const char AddOrUpdateFile_sym[] = "@_ZN12GModDataPack15AddOrUpdateFileEP7LuaFileb";
-static const size_t AddOrUpdateFile_symlen = 0;
-
-#endif
-
-static const std::string filesystem_dedicated_lib = Helpers::GetBinaryFileName( "dedicated", false );
-static const std::string filesystem_lib = Helpers::GetBinaryFileName( "filesystem_stdio", false, false );
 static IFileSystem *filesystem = nullptr;
-
-static const std::string server_lib = Helpers::GetBinaryFileName( "server", false, true, "garrysmod/bin/" );
-
-static const char FileSystemFactory_sym[] = "@CreateInterface";
-static const size_t FileSystemFactory_symlen = 0;
 
 static std::unordered_set<std::string> whitelist_extensions = { "lua", "txt", "dat" };
 static std::unordered_set<std::string> whitelist_pathid = { "lsv", "lua", "data" };
@@ -108,11 +82,7 @@ public:
 	{
 		lua = LUA;
 
-		SymbolFinder symfinder;
-
-		AddOrUpdateFile_original = reinterpret_cast<AddOrUpdateFile_t>(
-			symfinder.ResolveOnBinary( server_lib.c_str( ), AddOrUpdateFile_sym, AddOrUpdateFile_symlen )
-		);
+		AddOrUpdateFile_original = FunctionPointers::GModDataPack_AddOrUpdateFile( );
 		if( AddOrUpdateFile_original == nullptr )
 			LUA->ThrowError( "failed to find GModDataPack::AddOrUpdateFile" );
 
@@ -197,27 +167,7 @@ LUA_FUNCTION_STATIC( Rename )
 
 static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 {
-	SourceSDK::FactoryLoader engine_loader( "engine", false, true, "bin/" );
-
-	IVEngineServer *engine_server = engine_loader.GetInterface<IVEngineServer>(
-		INTERFACEVERSION_VENGINESERVER
-	);
-	if( engine_server == nullptr )
-		LUA->ThrowError( "failed to retrieve server engine interface" );
-
-	bool isdedicated = engine_server->IsDedicatedServer( );
-
-	SymbolFinder symfinder;
-
-	CreateInterfaceFn factory = reinterpret_cast<CreateInterfaceFn>( symfinder.ResolveOnBinary(
-		( isdedicated ? filesystem_dedicated_lib : filesystem_lib ).c_str( ),
-		isdedicated ? FileSystemFactory_dedicated_sym : FileSystemFactory_sym,
-		isdedicated ? FileSystemFactory_dedicated_symlen : FileSystemFactory_symlen
-	) );
-	if( factory == nullptr )
-		LUA->ThrowError( "unable to retrieve filesystem factory" );
-
-	filesystem = static_cast<IFileSystem *>( factory( FILESYSTEM_INTERFACE_VERSION, nullptr ) );
+	filesystem = InterfacePointers::FileSystem( );
 	if( filesystem == nullptr )
 		LUA->ThrowError( "failed to initialize IFileSystem" );
 
