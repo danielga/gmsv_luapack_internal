@@ -62,18 +62,7 @@ static std::unordered_set<std::string> whitelist_pathid = { "lsv", "lua", "data"
 class GModDataPackProxy : public Detouring::ClassProxy<GModDataPack, GModDataPackProxy>
 {
 private:
-
-#if defined _WIN32
-
-	typedef void( __thiscall *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
-
-#elif defined __linux || defined __APPLE__
-
-	typedef void( *AddOrUpdateFile_t ) ( GModDataPack *self, LuaFile *file, bool force );
-
-#endif
-
-	static AddOrUpdateFile_t AddOrUpdateFile_original;
+	static FunctionPointers::GModDataPack_AddOrUpdateFile_t AddOrUpdateFile_original;
 	static const char hook_name[];
 	static GarrysMod::Lua::ILuaBase *lua;
 
@@ -115,7 +104,7 @@ public:
 	static GModDataPackProxy Singleton;
 };
 
-GModDataPackProxy::AddOrUpdateFile_t GModDataPackProxy::AddOrUpdateFile_original = nullptr;
+FunctionPointers::GModDataPack_AddOrUpdateFile_t GModDataPackProxy::AddOrUpdateFile_original = nullptr;
 const char GModDataPackProxy::hook_name[] = "AddOrUpdateCSLuaFile";
 GarrysMod::Lua::ILuaBase *GModDataPackProxy::lua = nullptr;
 
