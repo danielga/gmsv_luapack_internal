@@ -61,13 +61,8 @@ static std::unordered_set<std::string> whitelist_pathid = { "lsv", "lua", "data"
 
 class GModDataPackProxy : public Detouring::ClassProxy<GModDataPack, GModDataPackProxy>
 {
-private:
-	static FunctionPointers::GModDataPack_AddOrUpdateFile_t AddOrUpdateFile_original;
-	static const char hook_name[];
-	static GarrysMod::Lua::ILuaBase *lua;
-
 public:
-	static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
+	void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 	{
 		lua = LUA;
 
@@ -79,34 +74,38 @@ public:
 			LUA->ThrowError( "failed to hook GModDataPack::AddOrUpdateFile" );
 	}
 
-	static void Deinitialize( GarrysMod::Lua::ILuaBase *LUA )
+	void Deinitialize( GarrysMod::Lua::ILuaBase *LUA )
 	{
 		UnHook( AddOrUpdateFile_original );
 	}
 
 	void AddOrUpdateFile( LuaFile *file, bool reload )
 	{
-		LuaHelpers::PushHookRun( lua, hook_name );
+		auto &self = Singleton;
 
-		lua->PushString( file->path.c_str( ) );
-		lua->PushBool( reload );
+		LuaHelpers::PushHookRun( self.lua, "AddOrUpdateCSLuaFile" );
+
+		self.lua->PushString( file->path.c_str( ) );
+		self.lua->PushBool( reload );
 
 		bool shouldcall = true;
-		if( LuaHelpers::CallHookRun( lua, 2, 1 ) )
-			shouldcall = !lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) || lua->GetBool( -1 );
+		if( LuaHelpers::CallHookRun( self.lua, 2, 1 ) )
+			shouldcall = !self.lua->IsType( -1, GarrysMod::Lua::Type::BOOL ) || self.lua->GetBool( -1 );
 
-		lua->Pop( 1 );
+		self.lua->Pop( 1 );
 
 		if( shouldcall )
-			return Call( AddOrUpdateFile_original, file, reload );
+			return Call( self.AddOrUpdateFile_original, file, reload );
 	}
 
 	static GModDataPackProxy Singleton;
+
+private:
+	FunctionPointers::GModDataPack_AddOrUpdateFile_t AddOrUpdateFile_original = nullptr;
+	GarrysMod::Lua::ILuaBase *lua = nullptr;
 };
 
-FunctionPointers::GModDataPack_AddOrUpdateFile_t GModDataPackProxy::AddOrUpdateFile_original = nullptr;
-const char GModDataPackProxy::hook_name[] = "AddOrUpdateCSLuaFile";
-GarrysMod::Lua::ILuaBase *GModDataPackProxy::lua = nullptr;
+GModDataPackProxy GModDataPackProxy::Singleton;
 
 static bool IsPathAllowed( std::string &filename )
 {
