@@ -57,7 +57,6 @@ namespace luapack
 static IFileSystem *filesystem = nullptr;
 
 static std::unordered_set<std::string> whitelist_extensions = { "lua", "txt", "dat" };
-static std::unordered_set<std::string> whitelist_pathid = { "lsv", "lua", "data" };
 
 class GModDataPackProxy : public Detouring::ClassProxy<GModDataPack, GModDataPackProxy>
 {
@@ -126,30 +125,20 @@ static bool IsPathAllowed( std::string &filename )
 	return whitelist_extensions.find( ext ) != whitelist_extensions.end( );
 }
 
-inline bool IsPathIDAllowed( std::string &pathid )
-{
-	std::transform( pathid.begin( ), pathid.end( ), pathid.begin( ), [] ( uint8_t c )
-	{
-		return static_cast<char>( std::tolower( c ) );
-	} );
-	return whitelist_pathid.find( pathid ) != whitelist_pathid.end( );
-}
-
 LUA_FUNCTION_STATIC( Rename )
 {
 	LUA->CheckType( 1, GarrysMod::Lua::Type::STRING );
 	LUA->CheckType( 2, GarrysMod::Lua::Type::STRING );
-	LUA->CheckType( 3, GarrysMod::Lua::Type::STRING );
 
-	std::string fname = LUA->GetString( 1 ), fnew = LUA->GetString( 2 ), pathid = LUA->GetString( 3 );
+	std::string fname = LUA->GetString( 1 ), fnew = LUA->GetString( 2 );
 
-	if( !IsPathAllowed( fname ) || !IsPathAllowed( fnew ) || !IsPathIDAllowed( pathid ) )
+	if( !IsPathAllowed( fname ) || !IsPathAllowed( fnew ) )
 	{
 		LUA->PushBool( false );
 		return 1;
 	}
 
-	LUA->PushBool( filesystem->RenameFile( fname.c_str( ), fnew.c_str( ), pathid.c_str( ) ) );
+	LUA->PushBool( filesystem->RenameFile( fname.c_str( ), fnew.c_str( ), "DATA" ) );
 	return 1;
 }
 
@@ -159,13 +148,41 @@ static void Initialize( GarrysMod::Lua::ILuaBase *LUA )
 	if( filesystem == nullptr )
 		LUA->ThrowError( "failed to initialize IFileSystem" );
 
+	if( filesystem->FileExists( "lua/includes/init.lua", "MOD" ) )
+	{
+		if( filesystem->FileExists( "lua/includes/_init.lua", "MOD" ) )
+		{
+			Msg( "[gmsv_luapack_internal] 'lua/includes/_init.lua' already exists, deleting it!\n" );
+			filesystem->RemoveFile( "lua/includes/_init.lua", "MOD" );
+		}
+
+		if( filesystem->RenameFile( "lua/includes/init.lua", "lua/includes/_init.lua", "MOD" ) )
+			Msg( "[gmsv_luapack_internal] Renamed 'lua/includes/init.lua' to 'lua/includes/_init.lua'!\n" );
+		else
+			Warning( "[gmsv_luapack_internal] Failed to rename 'lua/includes/init.lua' to 'lua/includes/_init.lua'!\n" );
+	}
+
+	if( filesystem->FileExists( "lua/send.txt", "MOD" ) )
+	{
+		if( filesystem->FileExists( "lua/_send.txt", "MOD" ) )
+		{
+			Msg( "[gmsv_luapack_internal] 'lua/_send.txt' already exists, deleting it!\n" );
+			filesystem->RemoveFile( "lua/_send.txt", "MOD" );
+		}
+
+		if( filesystem->RenameFile( "lua/send.txt", "lua/_send.txt", "MOD" ) )
+			Msg( "[gmsv_luapack_internal] Renamed 'lua/send.txt' to 'lua/_send.txt'!\n" );
+		else
+			Warning( "[gmsv_luapack_internal] Failed to rename 'lua/send.txt' to 'lua/_send.txt'!\n" );
+	}
+
 	GModDataPackProxy::Singleton.Initialize( LUA );
 
 	LUA->GetField( GarrysMod::Lua::INDEX_GLOBAL, "luapack" );
 	if( !LUA->IsType( -1, GarrysMod::Lua::Type::TABLE ) )
 	{
-		GModDataPackProxy::Singleton.Deinitialize(LUA);
-		LUA->ThrowError("luapack table not found");
+		GModDataPackProxy::Singleton.Deinitialize( LUA );
+		LUA->ThrowError( "luapack table not found" );
 	}
 
 	LUA->PushCFunction( Rename );
