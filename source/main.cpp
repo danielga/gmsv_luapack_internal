@@ -56,7 +56,7 @@ namespace luapack
 {
 static IFileSystem *filesystem = nullptr;
 
-static std::unordered_set<std::string> whitelist_extensions = { "lua", "txt", "dat" };
+static std::unordered_set<std::string> whitelist_extensions = { "lua", "txt", "dat", "bsp"};
 
 class GModDataPackProxy : public Detouring::ClassProxy<GModDataPack, GModDataPackProxy>
 {
